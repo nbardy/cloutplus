@@ -1,6 +1,6 @@
-const regl = require("regl")();
+import regl from "regl";
+const pyramid = require("./pyramid.glsl");
 
-const introScene = require("render.glsl");
 // NOTE: I use camelcase for functions
 //  add undercore for values
 function loadImage(url): Promise<HTMLImageElement> {
@@ -28,15 +28,6 @@ const smoothstep = (x) => {
 
   return 3 * x * x - 2 * x * x * x;
 };
-
-////////////////////////////////////////////////////////////////////////////////////////
-/// Congrats on reading the source code. The first two coin owners of
-/// bitcloutgold to post a 🤖 on their account, will get a machine learning
-/// 🤖 trained on their account at no extra cost!!! You must own at least one whole coin
-// and make a post including a 🤖.
-//
-/// Bitcloutgold is super alpha. I'm building give me space mother fuckers.
-////////////////////////////////////////////////////////////////////////////////////////
 
 const imgs_rdy = async () => {
   return true;
@@ -119,18 +110,84 @@ const renderLoop = (f) => {
 
 (async () => {
   const canvas = document.getElementById("plate") as HTMLCanvasElement;
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  const setSize = () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  };
+  setSize();
+  const stillT = 2.11;
+  window.addEventListener("resize", setSize);
+
+  // reglLib._refresh();
+  // reglLib.poll();
+
+  const reglLib = regl({ canvas });
 
   const firstT = Date.now();
 
   const ctx = canvas.getContext("2d");
-  await imgs_rdy();
 
-  renderScene();
+  const drawTriangle = reglLib({
+    // Shaders in regl are just strings.  You can use glslify or whatever you want
+    // to define them.  No need to manually create shader objects.
+    frag: pyramid,
+    vert: `
+    precision mediump float;
+    attribute vec2 position;
+    void main() {
+      gl_Position = vec4(position, 0, 1);
+    }`,
 
-  renderLoop(() => {
-    const dt = Date.now() - firstT;
-    draw(ctx, dt);
+    attributes: {
+      // Draw the whole screen
+      position: reglLib.buffer([
+        [1, 1],
+        [1, -3],
+        [-3, 1],
+      ]),
+    },
+
+    uniforms: {
+      // This defines the color of the triangle to be a dynamic variable
+      stillT,
+      iTime: () => {
+        let to = (Date.now() - firstT) * 0.001;
+        // to = 1.8;
+        return to;
+      },
+      iMouse: reglLib.prop("mouse" as never),
+      iResolution: [
+        reglLib.context("drawingBufferWidth"),
+        reglLib.context("drawingBufferHeight"),
+      ],
+      Dmax: 2,
+    },
+
+    // This tells regl the number of vertices to draw in this command
+    count: 3,
   });
+
+  let mouse = [0, 0];
+
+  document.body.addEventListener("mousemove", (e) => {
+    mouse = [e.pageX, e.pageY];
+    e.pageX;
+    e.pageY;
+  });
+
+  reglLib.frame(({ time }) => {
+    // clear contents of the drawing buffer
+    reglLib.clear({
+      color: [0, 0, 0, 0],
+      depth: 1,
+    });
+
+    // draw a triangle using the command defined above
+    drawTriangle({ mouse });
+  });
+
+  // renderLoop(() => {
+  //   const dt = Date.now() - firstT;
+  //   console.log(dt);
+  // });
 })();
